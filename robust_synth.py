@@ -28,9 +28,7 @@ def impute(Y, idx, idx2, method="avg"):
 
 
 def swap(X, unit):
-    temp = np.copy(X[0, :])
-    X[0, :] = np.copy(X[unit, :])
-    X[unit, :] = temp
+    X[[0, unit], :] = X[[unit, 0], :]
     return X
 
 
@@ -44,7 +42,6 @@ def threshold(X, num_sv=1, eta=0):
 
     # proportion of observed entries
     p_hat = np.count_nonzero(X) / (m * n)
-    #p_hat = 1
 
     # transform data matrix
     Y = np.copy(X)
@@ -65,11 +62,6 @@ def threshold(X, num_sv=1, eta=0):
         M_hat = M_hat.T
 
     return np.real(M_hat)
-
-
-def objective(x, A, b, lmda):
-    gram = np.dot(A.T, A)
-    return np.dot(x.T, np.dot(gram, x)) - 2 * np.dot(x.T, np.dot(A.T, b)) + lmda * np.dot(x.T, x)
 
 
 def learning(X, year, num_sv=1, method="linear", eta=0):
@@ -193,3 +185,64 @@ def learning(X, year, num_sv=1, method="linear", eta=0):
     m2 = M_hat[:, year:].T.dot(w)
 
     return w, np.concatenate([m1, m2]), M_hat, sigma_hat
+
+    class Synth():
+        def __init__(self, treat_unit, year, eta=0, p=1):
+            self.treat_unit = treat_unit
+            self.year = year
+            self.eta = eta
+            self.p = p
+            self.w = []
+            self.estimate = []
+            self.raw = []
+
+        def fit(self, df, num_sv=1, method="linear", method2="row avg", drop=0, drop_list=[]):
+            data = df.copy()
+            self.num_sv = num_sv
+
+            # prepare data
+            self.drop = drop
+            if self.drop == 1:
+                data = data.drop(data.index[drop_list])
+            X = data.as_matrix()
+            donor_list = list(data.index)
+
+            # treated unit
+            unit = donor_list.index(self.treat_unit)
+
+            # let row one be treated unit
+            X = swap(X, unit)
+            self.raw = np.copy(X[0, :])
+            self.Y = np.copy(X)
+
+            # drop p proportion of entries
+            idx1, idx2 = MAR(X, self.p)
+            X = impute(X, idx1, idx2, method=method2)
+
+            # estimation
+            self.method = method
+            self.w, self.estimate, self.M_hat, self.sigma_hat = learning(
+                X, self.year, num_sv=self.num_sv, method=self.method, eta=self.eta)
+
+        def vis_data(self, xlabel, ylabel, title, year_shift, year_mod=5,
+                     legend_loc="upper left", line_width=2.0, frame_color='0.925'):
+            self.xlabel = xlabel
+            self.ylabel = ylabel
+            self.title = title
+            self.year_shift = year_shift
+            self.year_mod = year_mod
+            self.legend_loc = legend_loc
+            self.line_width = line_width
+            self.frame_color = frame_color
+
+        def vis(self):
+            self.estimate_label = "Synthetic " + self.treat_unit
+            self.raw_label = self.treat_unit
+            if self.drop == 1:
+                visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
+                        self.xlabel, self.ylabel, self.title + " - no bad states", legend_loc=self.legend_loc,
+                        year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
+            else:
+                visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
+                        self.xlabel, self.ylabel, self.title, legend_loc=self.legend_loc,
+                        year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
