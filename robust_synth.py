@@ -1,30 +1,40 @@
+from __future__ import division
+from matplotlib import colors as mcolors
 import numpy as np
 from sklearn import linear_model
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split, cross_val_score
-from numpy.linalg import svd, norm, matrix_rank, pinv
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from numpy.linalg import svd, norm, matrix_rank, pinv, inv
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-from __future__ import division
-from matplotlib import colors as mcolors
+# import fancyimpute simple impute
+
+
+def visuals(estimate, raw, estimate_label="", raw_label="", year=0, year_shift=0, xlabel="", ylabel="", title="",
+            legend_loc='upper left', year_mod=5, frame_color='0.925', line_width=1.75):
+    # Plot data
+    fig, ax = plt.subplots()
+    ax.plot(raw[:], label=raw_label, lw=line_width, color='k')
+    ax.plot(estimate[:], '--', label=estimate_label, lw=line_width, color='b')
+    legend = ax.legend(loc=legend_loc, shadow=True, prop={'size': 10.5})
+    frame = legend.get_frame()
+    frame.set_facecolor(frame_color)
+    ax.plot([year, year], [ax.get_ylim()[0], ax.get_ylim()[1]], '--', linewidth=1.5, color='r')
+    years = int(np.floor(raw.shape[0] / year_mod))
+    x = np.array([year_mod * i for i in range(years + 1)])
+    plt.xticks(x, x + year_shift)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.rcParams.update({'font.size': 10})
+    plt.show()
 
 
 def MAR(X, p):
-    # missing at random
-    # p = proportion of observed entries
-    m, n = X.shape
-    mn = m * n
-    k = int(p * mn)
-    Y = np.random.choice([0, 1], size=mn, p=[1 - p, p])
-    return np.where(np.reshape(Y, (m, n)) == 0), np.where(np.reshape(Y, (m, n)) == 1)
+    pass
 
-
-def impute(Y, idx, idx2, method="avg"):
-    # impute missing entries
-    X = np.copy(Y)
-    X = X.astype(np.float)
-    X[idx] = np.median(X)
-    return X
+# ensure treatment unit is 'zeroth' unit
 
 
 def swap(X, unit):
@@ -32,7 +42,8 @@ def swap(X, unit):
     return X
 
 
-def threshold(X, num_sv=1, eta=0):
+# singular value thresholding
+def threshold(X, num_sv=1):
     # enforce data matrix X (m x n) to be a fat matrix (m <= n)
     transform = 0
     if X.shape[0] > X.shape[1]:
@@ -53,7 +64,7 @@ def threshold(X, num_sv=1, eta=0):
     S_size = len(S)
 
     # create matrix W
-    D = np.zeros((m, n), dtype=complex)
+    D = np.zeros((m, n))
     D[:S_size, :S_size] = np.diag(S)
     M_hat = (1 / p_hat) * np.dot(U, np.dot(D, V))
 
@@ -64,104 +75,91 @@ def threshold(X, num_sv=1, eta=0):
     return np.real(M_hat)
 
 
-def learning(X, year, num_sv=1, method="linear", eta=0):
-    # filter out noise (threshold data matrix)
-    M_hat = threshold(X[1:, :], num_sv=num_sv, eta=0)
-    y = X[0, :year]
-    A = M_hat[:, :year].T
+# PRINCIPLE COMPONENT REGRESSION
+def PCR(A, y, regr, alphas, cv):
+    pca = PCA()
+    pipe = Pipeline(steps=[('pca', pca), ('regr', regr)])
 
-    # cross-validation (LOO)
+    # Prediction
+    donor_size = A.shape[1]
+    n_components = np.linspace(1, donor_size, donor_size)
+
+    # Parameters of pipelines can be set using ‘__’ separated parameter names:
+    estimator = GridSearchCV(pipe,
+                             dict(pca__n_components=n_components,
+                                  logistic__C=Cs), cv=cv)
+    estimator.fit(X_digits, y_digits)
+
+
+# compute unnormalized mse
+def score(X, y, beta):
+    y_hat = X.dot(beta)
+    return norm(y_hat - y) ** 2
+
+
+# forward chaining method: cross-validation for time series
+# to maintain causal structure of data
+def forward_chain(X, y, method="Ridge"):
+    # forward chaining strategy
     N = 100
     lmda = np.linspace(0.1, 30, N)
     penalties = np.zeros(len(lmda))
+    year = X.shape[0]
 
-    """# cross validation (LOO)
-    for i in range(len(lmda)):
-        penalty = 0
-        for t in range(year):
-            # copy data
-            Y = np.copy(y)
-            X = np.copy(A)
-
-            # LOO
-            y_test = Y[t]
-            X_test = X[t, :]
-
-            X_train = np.delete(X, (t), axis=0)
-            y_train = np.delete(Y, t)
-
-            # fit model
-            regr = linear_model.Ridge(lmda[i], fit_intercept=False)
-            regr.fit(X_train, y_train)
-            w = regr.coef_
-
-            # temporary score
-            y_hat = np.dot(X_test, w)
-            temp = np.power(y_test - y_hat, 2)
-            penalty += temp
-        penalties[i] = penalty / year"""
-
-    # forward chaining strategy
     for i in range(len(lmda)):
         penalty = 0
         for t in range(1, year):
-            # copy data
-            Y = np.copy(y)
-            X = np.copy(A)
-
-            # LOO
-            y_test = Y[t]
-            X_test = X[t, :]
-
+            # train_test_split
             X_train = X[:t, :]
-            y_train = Y[:t]
+            y_train = y[:t]
+            X_test = X[t, :]
+            y_test = y[t]
 
             # fit model
-            regr = linear_model.Lasso(lmda[i], fit_intercept=False)
+            if method == "Lasso":
+                regr = linear_model.Lasso(lmda[i], fit_intercept=False)
+            else:
+                regr = linear_model.Ridge(lmda[i], fit_intercept=False)
             regr.fit(X_train, y_train)
-            w = regr.coef_
+            beta = regr.coef_
 
             # temporary score
-            y_hat = np.dot(X_test, w)
-            temp = np.power(y_test - y_hat, 2)
-            penalty += temp
+            penalty += score(X_test, y_test, beta)
         penalties[i] = penalty / year
 
     lmda_hat = lmda[np.argmin(penalties)]
-    print(lmda_hat)
+
+
+# inference stage
+def learn(X, year, num_sv=1, method="Linear"):
+    # filter out noise (threshold data matrix)
+    M_hat = threshold(X[1:, :], num_sv=num_sv)
+    y = X[0, :year]
+    A = M_hat[:, :year].T
+    sigma_hat = []
 
     if method == "Ridge":
-        print("Ridge Regression")
-
-        # estimate synthetic control
+        lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Ridge(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
         w = regr.coef_
-        sigma_hat = []
 
     elif method == "Lasso":
-        print("LASSO Regression")
-
-        # estimate synthetic control
+        lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Lasso(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
         w = regr.coef_
-        sigma_hat = []
 
     elif method == "Bayes":
         print("Bayesian Method")
-
         # Posterior distribution parameters
         inv_var = 1 / np.var(y)
-        prior_param = lmda_hat * inv_var
+        #prior_param = lmda_hat * inv_var
         prior_param = 0.09
-
-        print(prior_param)
-
         donor_size = A.shape[1]
 
         # covariance matrix
-        sigma_d = np.linalg.inv(prior_param * np.eye(donor_size) + inv_var * np.dot(A.T, A))
+        sigma_d = inv(prior_param * np.eye(donor_size) + inv_var * np.dot(A.T, A))
 
         # mean vector
         w = inv_var * np.dot(sigma_d, np.dot(A.T, y))
@@ -173,76 +171,79 @@ def learning(X, year, num_sv=1, method="linear", eta=0):
         sigma_hat = np.sqrt(sigma_hat)
 
     else:
-        print("Linear Regression")
-        # estimate synthetic control
         regr = linear_model.LinearRegression(fit_intercept=False)
         regr.fit(A, y)
         w = regr.coef_
-        sigma_hat = []
 
     # predict counterfactual
     m1 = A.dot(w)
     m2 = M_hat[:, year:].T.dot(w)
 
-    return w, np.concatenate([m1, m2]), M_hat, sigma_hat
+    return w, np.concatenate([m1, m2]), sigma_hat
 
-    class Synth():
-        def __init__(self, treat_unit, year, eta=0, p=1):
-            self.treat_unit = treat_unit
-            self.year = year
-            self.eta = eta
-            self.p = p
-            self.w = []
-            self.estimate = []
-            self.raw = []
 
-        def fit(self, df, num_sv=1, method="linear", method2="row avg", drop=0, drop_list=[]):
-            data = df.copy()
-            self.num_sv = num_sv
+""" SYNTH CLASS """
 
-            # prepare data
-            self.drop = drop
-            if self.drop == 1:
-                data = data.drop(data.index[drop_list])
-            X = data.as_matrix()
-            donor_list = list(data.index)
 
-            # treated unit
-            unit = donor_list.index(self.treat_unit)
+class Synth():
+    def __init__(self, treat_unit, year, method="Linear", p=1):
+        self.treat_unit = treat_unit
+        self.year = year
+        self.p = p
+        self.method = method
+        self.w = []
+        self.estimate = []
+        self.raw = []
 
-            # let row one be treated unit
-            X = swap(X, unit)
-            self.raw = np.copy(X[0, :])
-            self.Y = np.copy(X)
+    def fit(self, df, num_sv=1, drop=False, drop_list=[]):
+        data = df.copy()
+        self.num_sv = num_sv
 
-            # drop p proportion of entries
-            idx1, idx2 = MAR(X, self.p)
-            X = impute(X, idx1, idx2, method=method2)
+        # prepare data
+        self.drop = drop
+        if self.drop:
+            data = data.drop(data.index[drop_list])
+        X = data.as_matrix()
+        donor_list = list(data.index)
 
-            # estimation
-            self.method = method
-            self.w, self.estimate, self.M_hat, self.sigma_hat = learning(
-                X, self.year, num_sv=self.num_sv, method=self.method, eta=self.eta)
+        # treated unit
+        unit = donor_list.index(self.treat_unit)
 
-        def vis_data(self, xlabel, ylabel, title, year_shift, year_mod=5,
-                     legend_loc="upper left", line_width=2.0, frame_color='0.925'):
-            self.xlabel = xlabel
-            self.ylabel = ylabel
-            self.title = title
-            self.year_shift = year_shift
-            self.year_mod = year_mod
-            self.legend_loc = legend_loc
-            self.line_width = line_width
-            self.frame_color = frame_color
+        # let row zero represent the treatment unit
+        X = swap(X, unit)
+        self.raw = np.copy(X[0, :])
+        self.Y = np.copy(X)
 
-        def vis(self):
-            self.estimate_label = "Synthetic " + self.treat_unit
-            self.raw_label = self.treat_unit
-            if self.drop == 1:
-                visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
-                        self.xlabel, self.ylabel, self.title + " - no bad states", legend_loc=self.legend_loc,
-                        year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
-            else:
-                visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
-                        self.xlabel, self.ylabel, self.title, legend_loc=self.legend_loc,
-                        year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
+        # estimation
+        self.w, self.estimate, self.sigma_hat = learn(
+            X, self.year, num_sv=self.num_sv, method=self.method)
+
+    def vis_data(self, xlabel="year", ylabel="", title="", year_shift=0, year_mod=5,
+                 legend_loc="upper left", line_width=2.0, frame_color='0.925'):
+        self.xlabel = xlabel
+        self.ylabel = ylabel
+        self.title = title
+        self.year_shift = year_shift
+        self.year_mod = year_mod
+        self.legend_loc = legend_loc
+        self.line_width = line_width
+        self.frame_color = frame_color
+
+    def vis(self):
+        fig, ax = plt.subplots()
+        ax.plot(self.raw[:], label="orig", lw=1.5, color='b')
+        ax.plot(self.estimate[:], '--', label="counterfactual", lw=1.5, color='g')
+        legend = ax.legend(loc="upper left", shadow=True, prop={'size': 10.5})
+        plt.show()
+
+        """self.estimate_label = "Synthetic " + self.treat_unit
+        self.raw_label = self.treat_unit
+        if self.drop:
+            visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
+                    self.xlabel, self.ylabel, self.title + " - no bad states", legend_loc=self.legend_loc,
+                    year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
+        else:
+            visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
+                    self.xlabel, self.ylabel, self.title, legend_loc=self.legend_loc,
+                    year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
+                    """
