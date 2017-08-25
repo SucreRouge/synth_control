@@ -8,11 +8,15 @@ from sklearn.model_selection import train_test_split, cross_val_score, GridSearc
 from numpy.linalg import svd, norm, matrix_rank, pinv, inv
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-# import fancyimpute simple impute
 
 
+# Missing at random
 def MAR(X, p):
-    pass
+    missing_mask = np.random.rand(*X.shape) < (1 - p)
+    X_incomplete = X.copy()
+    # missing entries indicated with NaN
+    X_incomplete[missing_mask] = np.nan
+    return X_incomplete
 
 
 # ensure treatment unit is 'zeroth' unit
@@ -35,7 +39,12 @@ def threshold(X, num_sv=1):
 
     # transform data matrix
     Y = np.copy(X)
+    a = np.nanmin(Y)
+    b = np.nanmax(Y)
+    Y -= (a + b) / 2
+    Y /= (b - a) / 2
     Y[np.isnan(Y)] = 0
+    # Y[np.isnan(Y)] = np.nanmedian(X)
 
     # find threshold singular values
     U, s, V = np.linalg.svd(Y, full_matrices=True)
@@ -46,6 +55,10 @@ def threshold(X, num_sv=1):
     D = np.zeros((m, n))
     D[:S_size, :S_size] = np.diag(S)
     M_hat = (1 / p_hat) * np.dot(U, np.dot(D, V))
+
+    # re-transform matrix
+    M_hat *= (b - a) / 2
+    M_hat += (a + b) / 2
 
     # convert matrix back to original dimensions
     if transform == 1:
@@ -187,6 +200,9 @@ class Synth():
         X = swap(X, unit)
         self.orig = np.copy(X[0, :])
         self.Y = np.copy(X)
+
+        # missing at random
+        X = MAR(X, self.p)
 
         # estimation
         self.beta, self.mean, self.sigma_hat = learn(
