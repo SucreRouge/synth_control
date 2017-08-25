@@ -11,32 +11,11 @@ import matplotlib.pyplot as plt
 # import fancyimpute simple impute
 
 
-def visuals(estimate, raw, estimate_label="", raw_label="", year=0, year_shift=0, xlabel="", ylabel="", title="",
-            legend_loc='upper left', year_mod=5, frame_color='0.925', line_width=1.75):
-    # Plot data
-    fig, ax = plt.subplots()
-    ax.plot(raw[:], label=raw_label, lw=line_width, color='k')
-    ax.plot(estimate[:], '--', label=estimate_label, lw=line_width, color='b')
-    legend = ax.legend(loc=legend_loc, shadow=True, prop={'size': 10.5})
-    frame = legend.get_frame()
-    frame.set_facecolor(frame_color)
-    ax.plot([year, year], [ax.get_ylim()[0], ax.get_ylim()[1]], '--', linewidth=1.5, color='r')
-    years = int(np.floor(raw.shape[0] / year_mod))
-    x = np.array([year_mod * i for i in range(years + 1)])
-    plt.xticks(x, x + year_shift)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.rcParams.update({'font.size': 10})
-    plt.show()
-
-
 def MAR(X, p):
     pass
 
+
 # ensure treatment unit is 'zeroth' unit
-
-
 def swap(X, unit):
     X[[0, unit], :] = X[[unit, 0], :]
     return X
@@ -192,17 +171,12 @@ class Synth():
         self.p = p
         self.method = method
         self.w = []
-        self.estimate = []
-        self.raw = []
+        self.mean = []
+        self.orig = []
 
     def fit(self, df, num_sv=1, drop=False, drop_list=[]):
         data = df.copy()
         self.num_sv = num_sv
-
-        # prepare data
-        self.drop = drop
-        if self.drop:
-            data = data.drop(data.index[drop_list])
         X = data.as_matrix()
         donor_list = list(data.index)
 
@@ -211,39 +185,50 @@ class Synth():
 
         # let row zero represent the treatment unit
         X = swap(X, unit)
-        self.raw = np.copy(X[0, :])
+        self.orig = np.copy(X[0, :])
         self.Y = np.copy(X)
 
         # estimation
-        self.w, self.estimate, self.sigma_hat = learn(
+        self.w, self.mean, self.sigma_hat = learn(
             X, self.year, num_sv=self.num_sv, method=self.method)
 
-    def vis_data(self, xlabel="year", ylabel="", title="", year_shift=0, year_mod=5,
-                 legend_loc="upper left", line_width=2.0, frame_color='0.925'):
+    def vis_data(self, xlabel="year", ylabel="metric", title="Case Study",
+                 orig_label="observed data", mean_label="counterfactual mean",
+                 year_shift=0, year_mod=5, loc="best",
+                 lw=1.75, frame_color='0.925'):
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.title = title
+        self.orig_label = orig_label
+        self.mean_label = mean_label
         self.year_shift = year_shift
         self.year_mod = year_mod
-        self.legend_loc = legend_loc
-        self.line_width = line_width
+        self.loc = loc
+        self.lw = lw
         self.frame_color = frame_color
 
     def vis(self):
         fig, ax = plt.subplots()
-        ax.plot(self.raw[:], label="orig", lw=1.5, color='b')
-        ax.plot(self.estimate[:], '--', label="counterfactual", lw=1.5, color='g')
-        legend = ax.legend(loc="upper left", shadow=True, prop={'size': 10.5})
+        ax.plot(self.orig, label=self.orig_label, linewidth=self.lw, color='g')
+        ax.plot(self.mean, '--', label=self.mean_label, linewidth=self.lw, color='b')
+        x_ = np.linspace(0, len(self.mean) - 1, len(self.mean))
+        clr1 = 'lightcyan'
+        clr2 = 'paleturquoise'
+        upper = self.mean + self.sigma_hat
+        lower = self.mean - self.sigma_hat
+        ax.fill_between(x_, self.mean, upper, facecolor=clr1, edgecolor=clr2, interpolate=True)
+        ax.fill_between(x_, self.mean, lower, facecolor=clr1, edgecolor=clr2, interpolate=True)
+        legend = ax.legend(loc=self.loc, shadow=True, prop={'size': 9.5})
+        frame = legend.get_frame()
+        frame.set_facecolor(self.frame_color)
+        ax.plot([self.year, self.year], [ax.get_ylim()[0], ax.get_ylim()[1]],
+                '--', linewidth=self.lw, color='r')
+        years = int(np.floor(self.orig.shape[0] / self.year_mod))
+        x = np.array([self.year_mod * i for i in range(years + 1)])
+        ax.set_ylim([ax.get_ylim()[0], ax.get_ylim()[1]])
+        plt.xticks(x, x + self.year_shift)
+        plt.xlabel(self.xlabel)
+        plt.ylabel(self.ylabel)
+        plt.title(self.title)
         plt.show()
-
-        """self.estimate_label = "Synthetic " + self.treat_unit
-        self.raw_label = self.treat_unit
-        if self.drop:
-            visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
-                    self.xlabel, self.ylabel, self.title + " - no bad states", legend_loc=self.legend_loc,
-                    year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
-        else:
-            visuals(self.estimate, self.raw, self.estimate_label, self.raw_label, self.year, self.year_shift,
-                    self.xlabel, self.ylabel, self.title, legend_loc=self.legend_loc,
-                    year_mod=self.year_mod, line_width=self.line_width, frame_color=self.frame_color)
-                    """
+        plt.close()
