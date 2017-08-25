@@ -1,13 +1,10 @@
-from __future__ import division
-from matplotlib import colors as mcolors
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from robust_synth import *
+import robust_synth
 
 
 def case_study(data, region, year, num_sv=2, method="Linear"):
-    case = Synth(region, year=year, method=method)
+    case = robust_synth.Synth(region, year=year, method=method)
     case.fit(data, num_sv=num_sv)
     case.vis_data()
     case.vis()
