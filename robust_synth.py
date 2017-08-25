@@ -10,11 +10,10 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
-# Missing at random
+# Missing at random (MIGHT NEED TO FIX THIS!!!)
 def MAR(X, p):
     missing_mask = np.random.rand(*X.shape) < (1 - p)
     X_incomplete = X.copy()
-    # missing entries indicated with NaN
     X_incomplete[missing_mask] = np.nan
     return X_incomplete
 
@@ -28,10 +27,10 @@ def swap(X, unit):
 # singular value thresholding
 def threshold(X, num_sv=1):
     # enforce data matrix X (m x n) to be a fat matrix (m <= n)
-    transform = 0
+    transform = False
     if X.shape[0] > X.shape[1]:
         X = X.T
-        transform = 1
+        transform = True
     m, n = X.shape
 
     # proportion of observed entries
@@ -61,7 +60,7 @@ def threshold(X, num_sv=1):
     M_hat += (a + b) / 2
 
     # convert matrix back to original dimensions
-    if transform == 1:
+    if transform:
         M_hat = M_hat.T
 
     return np.real(M_hat)
