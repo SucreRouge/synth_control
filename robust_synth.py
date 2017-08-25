@@ -71,7 +71,7 @@ def PCR(A, y, regr, alphas, cv):
 
 
 # compute unnormalized mse
-def score(X, y, beta):
+def mse(X, y, beta):
     y_hat = X.dot(beta)
     return norm(y_hat - y) ** 2
 
@@ -103,10 +103,10 @@ def forward_chain(X, y, method="Ridge"):
             beta = regr.coef_
 
             # temporary score
-            penalty += score(X_test, y_test, beta)
+            penalty += mse(X_test, y_test, beta)
         penalties[i] = penalty / year
 
-    lmda_hat = lmda[np.argmin(penalties)]
+    return lmda[np.argmin(penalties)]
 
 
 # inference stage
@@ -121,44 +121,44 @@ def learn(X, year, num_sv=1, method="Linear"):
         lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Ridge(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
-        w = regr.coef_
+        beta = regr.coef_
 
     elif method == "Lasso":
         lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Lasso(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
-        w = regr.coef_
+        beta = regr.coef_
 
     elif method == "Bayes":
         print("Bayesian Method")
         # Posterior distribution parameters
         inv_var = 1 / np.var(y)
-        #prior_param = lmda_hat * inv_var
+        # prior_param = lmda_hat * inv_var
         prior_param = 0.09
         donor_size = A.shape[1]
 
         # covariance matrix
-        sigma_d = inv(prior_param * np.eye(donor_size) + inv_var * np.dot(A.T, A))
+        sigma_d = inv(prior_param * np.eye(donor_size) + inv_var * A.T.dot(A)
 
         # mean vector
-        w = inv_var * np.dot(sigma_d, np.dot(A.T, y))
+        beta=inv_var * np.dot(sigma_d, np.dot(A.T, y))
 
         # predict posterior variance
-        sigma_hat = np.ones(M_hat.shape[1]) / inv_var
+        sigma_hat=np.ones(M_hat.shape[1]) / inv_var
         for i in range(M_hat.shape[1]):
             sigma_hat[i] += np.dot(M_hat[:, i].T, np.dot(sigma_d, M_hat[:, i]))
-        sigma_hat = np.sqrt(sigma_hat)
+        sigma_hat=np.sqrt(sigma_hat)
 
     else:
-        regr = linear_model.LinearRegression(fit_intercept=False)
+        regr=linear_model.LinearRegression(fit_intercept=False)
         regr.fit(A, y)
-        w = regr.coef_
+        beta=regr.coef_
 
     # predict counterfactual
-    m1 = A.dot(w)
-    m2 = M_hat[:, year:].T.dot(w)
+    m1=A.dot(beta)
+    m2=M_hat[:, year:].T.dot(beta)
 
-    return w, np.concatenate([m1, m2]), sigma_hat
+    return beta, np.concatenate([m1, m2]), sigma_hat
 
 
 """ SYNTH CLASS """
@@ -166,65 +166,65 @@ def learn(X, year, num_sv=1, method="Linear"):
 
 class Synth():
     def __init__(self, treat_unit, year, method="Linear", p=1):
-        self.treat_unit = treat_unit
-        self.year = year
-        self.p = p
-        self.method = method
-        self.w = []
-        self.mean = []
-        self.orig = []
+        self.treat_unit=treat_unit
+        self.year=year
+        self.p=p
+        self.method=method
+        self.beta=[]
+        self.mean=[]
+        self.orig=[]
 
     def fit(self, df, num_sv=1, drop=False, drop_list=[]):
-        data = df.copy()
-        self.num_sv = num_sv
-        X = data.as_matrix()
-        donor_list = list(data.index)
+        data=df.copy()
+        self.num_sv=num_sv
+        X=data.as_matrix()
+        donor_list=list(data.index)
 
         # treated unit
-        unit = donor_list.index(self.treat_unit)
+        unit=donor_list.index(self.treat_unit)
 
         # let row zero represent the treatment unit
-        X = swap(X, unit)
-        self.orig = np.copy(X[0, :])
-        self.Y = np.copy(X)
+        X=swap(X, unit)
+        self.orig=np.copy(X[0, :])
+        self.Y=np.copy(X)
 
         # estimation
-        self.w, self.mean, self.sigma_hat = learn(
+        self.beta, self.mean, self.sigma_hat=learn(
             X, self.year, num_sv=self.num_sv, method=self.method)
 
     def vis_data(self, xlabel="year", ylabel="metric", title="Case Study",
                  orig_label="observed data", mean_label="counterfactual mean",
                  year_shift=0, year_mod=5, loc="best",
                  lw=1.75, frame_color='0.925'):
-        self.xlabel = xlabel
-        self.ylabel = ylabel
-        self.title = title
-        self.orig_label = orig_label
-        self.mean_label = mean_label
-        self.year_shift = year_shift
-        self.year_mod = year_mod
-        self.loc = loc
-        self.lw = lw
-        self.frame_color = frame_color
+        self.xlabel=xlabel
+        self.ylabel=ylabel
+        self.title=title
+        self.orig_label=orig_label
+        self.mean_label=mean_label
+        self.year_shift=year_shift
+        self.year_mod=year_mod
+        self.loc=loc
+        self.lw=lw
+        self.frame_color=frame_color
 
     def vis(self):
-        fig, ax = plt.subplots()
+        fig, ax=plt.subplots()
         ax.plot(self.orig, label=self.orig_label, linewidth=self.lw, color='g')
         ax.plot(self.mean, '--', label=self.mean_label, linewidth=self.lw, color='b')
-        x_ = np.linspace(0, len(self.mean) - 1, len(self.mean))
-        clr1 = 'lightcyan'
-        clr2 = 'paleturquoise'
-        upper = self.mean + self.sigma_hat
-        lower = self.mean - self.sigma_hat
+        x_=np.linspace(0, len(self.mean) - 1, len(self.mean))
+        clr1='lightcyan'
+        clr2='paleturquoise'
+        upper=self.mean + self.sigma_hat
+        lower=self.mean - self.sigma_hat
         ax.fill_between(x_, self.mean, upper, facecolor=clr1, edgecolor=clr2, interpolate=True)
         ax.fill_between(x_, self.mean, lower, facecolor=clr1, edgecolor=clr2, interpolate=True)
-        legend = ax.legend(loc=self.loc, shadow=True, prop={'size': 9.5})
-        frame = legend.get_frame()
+        legend=ax.legend(loc=self.loc, shadow=True, prop={'size': 9.5})
+        frame=legend.get_frame()
         frame.set_facecolor(self.frame_color)
         ax.plot([self.year, self.year], [ax.get_ylim()[0], ax.get_ylim()[1]],
                 '--', linewidth=self.lw, color='r')
-        years = int(np.floor(self.orig.shape[0] / self.year_mod))
-        x = np.array([self.year_mod * i for i in range(years + 1)])
+        years=int(np.floor(self.orig.shape[0] / self.year_mod))
+        x=np.array([self.year_mod * i for i in range(years + 1)])
         ax.set_ylim([ax.get_ylim()[0], ax.get_ylim()[1]])
         plt.xticks(x, x + self.year_shift)
         plt.xlabel(self.xlabel)
