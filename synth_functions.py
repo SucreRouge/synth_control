@@ -21,13 +21,29 @@ def swap(X, unit):
     return X
 
 
+def transform(X):
+    a = np.nanmin(X)
+    b = np.nanmax(X)
+    X -= (a + b) / 2
+    X /= (b - a) / 2
+    X[np.isnan(X)] = 0
+    return X, a, b
+
+
+def inverse_transform(X, a, b):
+    X *= (b - a) / 2
+    X += (a + b) / 2
+    return X
+
+
 # singular value thresholding
 def threshold(X, num_sv=1):
     # enforce data matrix X (m x n) to be a fat matrix (m <= n)
-    transform = False
+    transpose = False
+    transform_ = False
     if X.shape[0] > X.shape[1]:
         X = X.T
-        transform = True
+        transpose = True
     m, n = X.shape
 
     # proportion of observed entries
@@ -35,12 +51,12 @@ def threshold(X, num_sv=1):
 
     # transform data matrix
     Y = np.copy(X)
-    a = np.nanmin(Y)
-    b = np.nanmax(Y)
-    Y -= (a + b) / 2
-    Y /= (b - a) / 2
-    Y[np.isnan(Y)] = 0
-    # Y[np.isnan(Y)] = np.nanmedian(X)
+    if np.nanmin(Y) < -1 or np.nanmax(Y) > 1:
+        Y, a, b = transform(Y)
+        transform_ = True
+    else:
+        #Y[np.isnan(Y)] = 0
+        Y[np.isnan(Y)] = np.nanmedian(X)
 
     # find threshold singular values
     U, s, V = np.linalg.svd(Y, full_matrices=True)
@@ -53,11 +69,11 @@ def threshold(X, num_sv=1):
     M_hat = (1 / p_hat) * np.dot(U, np.dot(D, V))
 
     # re-transform matrix
-    M_hat *= (b - a) / 2
-    M_hat += (a + b) / 2
+    if transform_:
+        M_hat = inverse_transform(M_hat, a, b)
 
     # convert matrix back to original dimensions
-    if transform:
+    if transpose:
         M_hat = M_hat.T
 
     return np.real(M_hat)
