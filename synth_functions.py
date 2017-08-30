@@ -80,9 +80,21 @@ def threshold(X, num_sv=1):
 
 
 # PRINCIPLE COMPONENT REGRESSION
-def PCR(A, y, regr, alphas, cv):
+def PCR(A, y, alphas=np.linspace(0.1, 10, 100), cv=1, method="Linear"):
+    if method == "Ridge":
+        regr = linear_model.Ridge(fit_intercept=False)
+    elif method == "Lasso":
+        regr = linear_model.Lasso(fit_intercept=False)
+    else:
+        regr = linear_model.LinearRegression(fit_intercept=False)
+
     pca = PCA()
     pipe = Pipeline(steps=[('pca', pca), ('regr', regr)])
+
+    # dumb method of PCR: (1) PCA (2) Regression
+    # step 1:
+    pca = PCA()
+    pca.fit(A)
 
     # Prediction
     donor_size = A.shape[1]
@@ -91,7 +103,7 @@ def PCR(A, y, regr, alphas, cv):
     # Parameters of pipelines can be set using ‘__’ separated parameter names:
     estimator = GridSearchCV(pipe,
                              dict(pca__n_components=n_components,
-                                  logistic__C=Cs), cv=cv)
+                                  alphas=alphas), cv=cv)
     estimator.fit(X_digits, y_digits)
 
 
