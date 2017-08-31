@@ -5,9 +5,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from numpy.linalg import svd, norm, inv
 
+
 # Missing at random (MIGHT NEED TO FIX THIS!!!)
-
-
 def MAR(X, p):
     missing_mask = np.random.rand(*X.shape) < (1 - p)
     X_incomplete = X.copy()
