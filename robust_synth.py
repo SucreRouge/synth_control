@@ -6,19 +6,23 @@ from synth_functions import *
 
 
 class Synth():
-    def __init__(self, treat_unit, year, method="Linear", p=1):
+    def __init__(self, treat_unit, year, method="linear", p=1, num_sv=1,
+                 drop=False, drop_list=[]):
         self.treat_unit = treat_unit
         self.year = year
         self.p = p
         self.method = method
+        self.num_sv = num_sv
+        self.drop = drop
+        self.drop_list = drop_list
         self.beta = []
         self.mean = []
         self.orig = []
 
-    def fit(self, df, num_sv=1, drop=False, drop_list=[]):
+    def fit(self, df):
         data = df.copy()
-        self.num_sv = num_sv
         X = data.as_matrix()
+        X = X.astype(float)
         donor_list = list(data.index)
 
         # treated unit
@@ -30,7 +34,7 @@ class Synth():
         self.Y = np.copy(X)
 
         # missing at random
-        X = MAR(X, self.p)
+        #X = MAR(X, self.p)
 
         # estimation
         self.beta, self.mean, self.sigma_hat = learn(
@@ -51,10 +55,11 @@ class Synth():
         self.lw = lw
         self.frame_color = frame_color
 
-    def vis(self):
+    def vis(self, abadie):
         fig, ax = plt.subplots()
         ax.plot(self.orig, label=self.orig_label, linewidth=self.lw, color='g')
         ax.plot(self.mean, '--', label=self.mean_label, linewidth=self.lw, color='b')
+        #ax.plot(abadie, '--', label="abadie", linewidth=self.lw, color='r')
         x_ = np.linspace(0, len(self.mean) - 1, len(self.mean))
         clr1 = 'lightcyan'
         clr2 = 'paleturquoise'

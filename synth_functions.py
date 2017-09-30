@@ -114,7 +114,7 @@ def mse(X, y, beta):
 
 # forward chaining method: cross-validation for time series
 # to maintain causal structure of data
-def forward_chain(X, y, method="Ridge"):
+def forward_chain(X, y, method="ridge"):
     # forward chaining strategy
     N = 100
     lmda = np.linspace(0.1, 30, N)
@@ -131,7 +131,7 @@ def forward_chain(X, y, method="Ridge"):
             y_test = y[t]
 
             # fit model
-            if method == "Lasso":
+            if method.lower() == "lasso":
                 regr = linear_model.Lasso(lmda[i], fit_intercept=False)
             else:
                 regr = linear_model.Ridge(lmda[i], fit_intercept=False)
@@ -146,31 +146,37 @@ def forward_chain(X, y, method="Ridge"):
 
 
 # inference stage
-def learn(X, year, num_sv=1, method="Linear"):
+def learn(X, year, num_sv=1, method="linear"):
     # filter out noise (threshold data matrix)
     M_hat = threshold(X[1:, :], num_sv=num_sv)
     y = X[0, :year]
     A = M_hat[:, :year].T
     sigma_hat = 0
 
-    if method == "Ridge":
+    if method.lower() == "ridge":
         lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Ridge(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
         beta = regr.coef_
 
-    elif method == "Lasso":
+    elif method.lower() == "lasso":
         lmda_hat = forward_chain(A, y, method)
         regr = linear_model.Lasso(lmda_hat, fit_intercept=False)
         regr.fit(A, y)
         beta = regr.coef_
 
-    elif method == "Bayes":
+    elif method.lower() == "bayes":
         print("Bayesian Method")
         # Posterior distribution parameters
         inv_var = 1 / np.var(y)
-        # prior_param = lmda_hat * inv_var
-        prior_param = 0.09
+
+        #regr = linear_model.RidgeCV(fit_intercept=False)
+        #regr.fit(A, y)
+        #lmda_hat = regr.alpha_
+        lmda_hat = forward_chain(A, y, "ridge")
+        prior_param = lmda_hat * inv_var
+
+        #prior_param = 0.09
         donor_size = A.shape[1]
 
         # covariance matrix
