@@ -1,9 +1,7 @@
-from __future__ import division
-from matplotlib import colors as mcolors
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import robust_synth
+import synth_functions
 
 
 # BASQUE COUNTRY STUDY
@@ -35,10 +33,22 @@ linear_mean = linear.mean
 ridge_mean = ridge.mean
 lasso_mean = lasso.mean
 
-"""synth_plots(obs=obs, linear=linear_mean, ridge=ridge_mean, lasso=lasso_mean, abadie=abadie, title=title, xlabel=xlabel,
-            ylabel=ylabel, region="Basque", year=year, year_shift=year_shift, loc="lower right", upper=12)
+abadie = np.array([3.70275826,   3.85377741,   3.99618902,   4.02922158,
+                   4.05951172,   4.3787652,   4.73286861,   4.98746136,
+                   5.22186476,   5.29834131,   5.3619788,   5.44839733,
+                   5.52300483,   5.76061456,   5.99301375,   6.13783742,
+                   6.29426509,   6.62068884,   6.93289289,   7.08693884,
+                   7.22791833,   7.22057226,   7.21105396,   7.07458287,
+                   7.05725888,   7.12924607,   7.23436873,   7.32529425,
+                   7.42182591,   7.51631585,   7.61009202,   8.1179103,
+                   8.62355603,   9.08677821,   9.54553342,   9.7882537,
+                   10.03771928,   9.83822235,   9.63904542,   9.98791378,
+                   10.30394025,  10.5384924,  10.99881349])
+synth_functions.synth_plots(obs=obs, linear=linear_mean, ridge=ridge_mean, lasso=lasso_mean, abadie=abadie, title=title, xlabel=xlabel,
+                            ylabel=ylabel, region="Basque", year=year, year_shift=year_shift, loc="lower right", upper=12)
+"""
 for n in range(1, 6):
-    case_study(basque, region, year, num_sv=n, method="Bayes", abadie=abadie)
+    synth_functions.case_study(basque, region, year, num_sv=n, method="Bayes", abadie=abadie)
 """
 
 # CALIFORNIA PROP 99 STUDY
@@ -65,11 +75,11 @@ linear_mean = linear.mean
 ridge_mean = ridge.mean
 lasso_mean = lasso.mean
 
-"""synth_plots(obs=obs, linear=linear_mean, ridge=ridge_mean, lasso=lasso_mean, abadie=abadie, title=title, xlabel=xlabel,
+"""synth_functions.synth_plots(obs=obs, linear=linear_mean, ridge=ridge_mean, lasso=lasso_mean, abadie=abadie, title=title, xlabel=xlabel,
             ylabel=ylabel, region="California", year=year, year_shift=year_shift, loc="lower left", upper=140)
 
 for n in range(1, 6):
-    case_study(cali, region, year, num_sv=n, method="Bayes", abadie=abadie)
+    synth_functions.case_study(cali, region, year, num_sv=n, method="Bayes", abadie=abadie)
 """
 
 

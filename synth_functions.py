@@ -1,3 +1,6 @@
+from __future__ import division
+from matplotlib import colors as mcolors
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import linear_model
 from sklearn.decomposition import PCA
