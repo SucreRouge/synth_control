@@ -9,7 +9,7 @@ df = pd.read_csv('basque.csv')
 basque = df.pivot_table(values='gdpcap', index='regionname', columns='year')
 basque = basque.drop('Spain (Espana)')
 year = 15
-region = "Basque Country (Pais Vasco)"
+region = "Cataluna"
 year_shift = 1955
 xlabel = "year"
 ylabel = "real per-capita GDP (1986 USD, thoudsand)"
@@ -51,7 +51,7 @@ for n in range(1, 6):
     synth_functions.case_study(basque, region, year, num_sv=n, method="Bayes", abadie=abadie)
 """
 
-# CALIFORNIA PROP 99 STUDY
+"""# CALIFORNIA PROP 99 STUDY
 df = pd.read_csv('cali.csv')
 df = df[df['SubMeasureDesc'] == 'Cigarette Consumption (Pack Sales Per Capita)']
 cali = df.pivot_table(values='Data_Value', index='LocationDesc', columns='Year')
@@ -73,7 +73,7 @@ lasso.fit(cali)
 obs = linear.orig
 linear_mean = linear.mean
 ridge_mean = ridge.mean
-lasso_mean = lasso.mean
+lasso_mean = lasso.mean"""
 
 """synth_functions.synth_plots(obs=obs, linear=linear_mean, ridge=ridge_mean, lasso=lasso_mean, abadie=abadie, title=title, xlabel=xlabel,
             ylabel=ylabel, region="California", year=year, year_shift=year_shift, loc="lower left", upper=140)

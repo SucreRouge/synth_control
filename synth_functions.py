@@ -7,6 +7,11 @@ from sklearn.decomposition import PCA
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from numpy.linalg import svd, norm, inv
+from scipy import stats
+
+
+def t_test(array1, array2):
+    return stats.ttest_rel(array1, array2)
 
 
 # Missing at random (MIGHT NEED TO FIX THIS!!!)
