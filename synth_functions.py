@@ -201,3 +201,36 @@ def learn(X, year, num_sv=1, method="linear"):
     m2 = M_hat[:, year:].T.dot(beta)
 
     return beta, np.concatenate([m1, m2]), sigma_hat
+
+
+# FOR PLOTTING PURPOSES ONLY
+
+def case_study(data, region, year, num_sv=2, method="Linear", abadie=[]):
+    case = robust_synth.Synth(region, year=year, method=method, num_sv=num_sv)
+    case.fit(data)
+    case.vis_data()
+    case.vis(abadie)
+
+
+def synth_plots(obs, linear, ridge, lasso, abadie, title, xlabel, ylabel, region, year, year_shift, loc, upper):
+    fig, ax = plt.subplots()
+    ax.plot(obs, label=region, linewidth=1.75, color='k')
+    ax.plot(linear, '--', label='Synthetic ' + region + " (linear)", linewidth=1.75, color='b')
+    ax.plot(ridge, '--', label='Synthetic ' + region + " (ridge)", linewidth=1.75, color='g')
+    ax.plot(lasso, '--', label='Synthetic ' + region +
+            " (lasso)", linewidth=1.75, color='darkorange')
+    ax.plot(abadie, '--', label='Synthetic ' + region +
+            " (Abadie et. al)", linewidth=1.75, color='gray')
+    legend = ax.legend(loc=loc, shadow=True, prop={'size': 9.5})
+    frame = legend.get_frame()
+    frame.set_facecolor('0.925')
+    ax.plot([year, year], [0, upper], '--', linewidth=1.5, color='r')
+    years = int(np.floor(obs.shape[0] / 5))
+    x = np.array([5 * i for i in range(years + 1)])
+    ax.set_ylim([0, upper])
+    plt.xticks(x, x + year_shift)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.show()
+    plt.close()
