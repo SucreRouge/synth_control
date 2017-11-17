@@ -3,15 +3,51 @@ from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import linear_model
-from sklearn.decomposition import PCA
-from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from numpy.linalg import svd, norm, inv
 from scipy import stats
 
 
-def t_test(array1, array2):
-    return stats.ttest_rel(array1, array2)
+# singular value thresholding
+def threshold_test(X, mu=1):
+    # enforce data matrix X (m x n) to be a fat matrix (m <= n)
+    transpose = False
+    transform_ = False
+    if X.shape[0] > X.shape[1]:
+        X = X.T
+        transpose = True
+    m, n = X.shape
+
+    # proportion of observed entries
+    p_hat = np.count_nonzero(X) / (m * n)
+
+    # transform data matrix
+    Y = np.copy(X)
+
+    # find threshold singular values
+    U, s, V = np.linalg.svd(Y, full_matrices=True)
+
+    # prescription threshold
+    #sigma_hat = np.var(Y, dtype=np.float64)
+    #mu = 2 * np.sqrt(n * (sigma_hat * p_hat + p_hat * (1 - p_hat)))
+
+    S = s[s >= mu]
+    S_size = len(S)
+
+    # create matrix W
+    D = np.zeros((m, n))
+    D[:S_size, :S_size] = np.diag(S)
+    M_hat = (1 / p_hat) * np.dot(U, np.dot(D, V))
+
+    # re-transform matrix
+    if transform_:
+        M_hat = inverse_transform(M_hat, a, b)
+
+    # convert matrix back to original dimensions
+    if transpose:
+        M_hat = M_hat.T
+
+    return np.real(M_hat)
 
 
 # Missing at random (MIGHT NEED TO FIX THIS!!!)
@@ -58,15 +94,16 @@ def threshold(X, num_sv=1):
 
     # transform data matrix
     Y = np.copy(X)
-    if np.nanmin(Y) < -1 or np.nanmax(Y) > 1:
+    """if np.nanmin(Y) < -1 or np.nanmax(Y) > 1:
         Y, a, b = transform(Y)
         transform_ = True
     else:
         #Y[np.isnan(Y)] = 0
-        Y[np.isnan(Y)] = np.nanmedian(X)
+        Y[np.isnan(Y)] = np.nanmedian(X)"""
 
     # find threshold singular values
     U, s, V = np.linalg.svd(Y, full_matrices=True)
+
     S = s[:num_sv]
     S_size = len(S)
 
@@ -84,34 +121,6 @@ def threshold(X, num_sv=1):
         M_hat = M_hat.T
 
     return np.real(M_hat)
-
-
-# PRINCIPLE COMPONENT REGRESSION
-def PCR(A, y, alphas=np.linspace(0.1, 10, 100), cv=1, method="Linear"):
-    if method == "Ridge":
-        regr = linear_model.Ridge(fit_intercept=False)
-    elif method == "Lasso":
-        regr = linear_model.Lasso(fit_intercept=False)
-    else:
-        regr = linear_model.LinearRegression(fit_intercept=False)
-
-    pca = PCA()
-    pipe = Pipeline(steps=[('pca', pca), ('regr', regr)])
-
-    # dumb method of PCR: (1) PCA (2) Regression
-    # step 1:
-    pca = PCA()
-    pca.fit(A)
-
-    # Prediction
-    donor_size = A.shape[1]
-    n_components = np.linspace(1, donor_size, donor_size)
-
-    # Parameters of pipelines can be set using ‘__’ separated parameter names:
-    estimator = GridSearchCV(pipe,
-                             dict(pca__n_components=n_components,
-                                  alphas=alphas), cv=cv)
-    estimator.fit(X_digits, y_digits)
 
 
 # compute unnormalized mse
@@ -154,8 +163,9 @@ def forward_chain(X, y, method="ridge"):
 
 
 # inference stage
-def learn(X, year, num_sv=1, method="linear"):
+def learn(X, year, num_sv=1, prior_param=0.5, method="linear"):
     # filter out noise (threshold data matrix)
+    print("num_sv = {}".format(num_sv))
     M_hat = threshold(X[1:, :], num_sv=num_sv)
     y = X[0, :year]
     A = M_hat[:, :year].T
@@ -173,19 +183,26 @@ def learn(X, year, num_sv=1, method="linear"):
         regr.fit(A, y)
         beta = regr.coef_
 
-    elif method.lower() == "bayes":
+    elif method.lower() == "bayes" or method.lower() == "bayesian":
         print("Bayesian Method")
         # Posterior distribution parameters
-        inv_var = 1 / np.var(y)
+        #inv_var = 1 / np.var(y)
+        # print(inv_var)
+        s_mean = np.mean(y)
+        var = (1 / (len(y) - 1)) * np.sum(np.power(y - s_mean, 2))
+        inv_var = 1 / var
 
         #regr = linear_model.RidgeCV(fit_intercept=False)
         #regr.fit(A, y)
+        #print(regr.alpha_ * inv_var)
         #lmda_hat = regr.alpha_
         lmda_hat = forward_chain(A, y, "ridge")
+        #print(lmda_hat * inv_var)
+        # print()
         prior_param = lmda_hat * inv_var
 
-        #prior_param = 0.09
         donor_size = A.shape[1]
+        print("prior_param = {}".format(prior_param))
 
         # covariance matrix
         sigma_d = inv(prior_param * np.eye(donor_size) + inv_var * A.T.dot(A))
@@ -209,36 +226,3 @@ def learn(X, year, num_sv=1, method="linear"):
     m2 = M_hat[:, year:].T.dot(beta)
 
     return beta, np.concatenate([m1, m2]), sigma_hat
-
-
-# FOR PLOTTING PURPOSES ONLY
-
-def case_study(data, region, year, num_sv=2, method="Linear", abadie=[]):
-    case = robust_synth.Synth(region, year=year, method=method, num_sv=num_sv)
-    case.fit(data)
-    case.vis_data()
-    case.vis(abadie)
-
-
-def synth_plots(obs, linear, ridge, lasso, abadie, title, xlabel, ylabel, region, year, year_shift, loc, upper):
-    fig, ax = plt.subplots()
-    ax.plot(obs, label=region, linewidth=1.75, color='k')
-    ax.plot(linear, '--', label='Synthetic ' + region + " (linear)", linewidth=1.75, color='b')
-    ax.plot(ridge, '--', label='Synthetic ' + region + " (ridge)", linewidth=1.75, color='g')
-    ax.plot(lasso, '--', label='Synthetic ' + region +
-            " (lasso)", linewidth=1.75, color='darkorange')
-    ax.plot(abadie, '--', label='Synthetic ' + region +
-            " (Abadie et. al)", linewidth=1.75, color='gray')
-    legend = ax.legend(loc=loc, shadow=True, prop={'size': 9.5})
-    frame = legend.get_frame()
-    frame.set_facecolor('0.925')
-    ax.plot([year, year], [0, upper], '--', linewidth=1.5, color='r')
-    years = int(np.floor(obs.shape[0] / 5))
-    x = np.array([5 * i for i in range(years + 1)])
-    ax.set_ylim([0, upper])
-    plt.xticks(x, x + year_shift)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.show()
-    plt.close()

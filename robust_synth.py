@@ -6,13 +6,14 @@ from synth_functions import *
 
 
 class Synth():
-    def __init__(self, treat_unit, year, method="linear", p=1, num_sv=1,
+    def __init__(self, treat_unit, year, prior_param=0.5, method="linear", p=1, num_sv=1,
                  drop=False, drop_list=[]):
         self.treat_unit = treat_unit
         self.year = year
         self.p = p
         self.method = method
         self.num_sv = num_sv
+        self.prior_param = prior_param
         self.drop = drop
         self.drop_list = drop_list
         self.beta = []
@@ -38,7 +39,7 @@ class Synth():
 
         # estimation
         self.beta, self.mean, self.sigma_hat = learn(
-            X, self.year, num_sv=self.num_sv, method=self.method)
+            X, self.year, num_sv=self.num_sv, method=self.method, prior_param=self.prior_param)
 
     def vis_data(self, xlabel="year", ylabel="metric", title="Case Study",
                  orig_label="observed data", mean_label="counterfactual mean",
